@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 女友拍照助手 8.0</title>
+<title>AI 女友拍照助手 9.0</title>
 
 <style>
 body {
@@ -22,10 +22,8 @@ video, canvas {
   object-fit: cover;
 }
 
-#overlayLines {
+#overlay {
   position: fixed;
-  top: 0;
-  left: 0;
   width: 100vw;
   height: 100vh;
   pointer-events: none;
@@ -33,17 +31,35 @@ video, canvas {
 
 .line {
   position: absolute;
-  background: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.4);
 }
 
-.vertical {
-  width: 2px;
-  height: 100%;
+.vertical { width: 2px; height: 100%; }
+.horizontal { height: 2px; width: 100%; }
+
+.golden-point {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: white;
+  transform: translate(-50%, -50%);
+  opacity: 0.6;
 }
 
-.horizontal {
-  height: 2px;
-  width: 100%;
+.highlight {
+  background: lime !important;
+  box-shadow: 0 0 20px lime;
+  opacity: 1;
+}
+
+#centerDot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: red;
+  transform: translate(-50%, -50%);
 }
 
 #tipText {
@@ -97,18 +113,23 @@ video, canvas {
 <video class="input_video" autoplay playsinline muted></video>
 <canvas class="output_canvas"></canvas>
 
-<div id="overlayLines">
-  <!-- 黄金竖线 -->
+<div id="overlay">
+  <!-- 黄金线 -->
   <div class="line vertical" style="left:38.2%;"></div>
   <div class="line vertical" style="left:61.8%;"></div>
-  <!-- 黄金横线 -->
   <div class="line horizontal" style="top:38.2%;"></div>
-  <div class="line horizontal" style="top:61.8%;"></div>
+
+  <!-- 黄金交叉点 -->
+  <div id="gp1" class="golden-point" style="left:38.2%; top:38.2%;"></div>
+  <div id="gp2" class="golden-point" style="left:61.8%; top:38.2%;"></div>
+
+  <!-- 人物中心点 -->
+  <div id="centerDot"></div>
 </div>
 
 <div id="tipText"></div>
 <div id="scoreText"></div>
-<div id="readyHint">黄金构图达标 📸</div>
+<div id="readyHint">已吸附黄金点 📸</div>
 <button id="shutterBtn"></button>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
@@ -135,10 +156,6 @@ pose.setOptions({
 
 pose.onResults(onResults);
 
-function near(value, target, tolerance) {
-  return Math.abs(value - target) < tolerance;
-}
-
 function onResults(results) {
 
   canvas.width = video.videoWidth;
@@ -153,58 +170,56 @@ function onResults(results) {
   const rightShoulder = lm[12];
   const leftEye = lm[2];
   const rightEye = lm[5];
-  const nose = lm[0];
-  const leftAnkle = lm[27];
-  const rightAnkle = lm[28];
 
-  const tipText = document.getElementById("tipText");
-  const scoreText = document.getElementById("scoreText");
-  const readyHint = document.getElementById("readyHint");
-
-  let score = 100;
-  let tips = [];
-
-  const shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+  const centerX = (leftShoulder.x + rightShoulder.x) / 2;
   const eyeY = (leftEye.y + rightEye.y) / 2;
 
-  const bodyTop = nose.y;
-  const bodyBottom = Math.max(leftAnkle.y, rightAnkle.y);
-  const bodyHeight = bodyBottom - bodyTop;
+  const centerDot = document.getElementById("centerDot");
+  centerDot.style.left = (centerX * 100) + "%";
+  centerDot.style.top = (eyeY * 100) + "%";
 
-  // ===== 黄金比例判断 =====
-  const goldenLeft = 0.382;
-  const goldenRight = 0.618;
-  const goldenTop = 0.382;
+  const goldenPoints = [
+    {x:0.382, y:0.382, el:document.getElementById("gp1")},
+    {x:0.618, y:0.382, el:document.getElementById("gp2")}
+  ];
 
-  if (
-    !near(shoulderCenterX, goldenLeft, 0.08) &&
-    !near(shoulderCenterX, goldenRight, 0.08)
-  ) {
-    tips.push("人物未贴近黄金竖线");
-    score -= 30;
-  }
+  let bestDistance = 999;
+  let bestPoint = null;
 
-  if (!near(eyeY, goldenTop, 0.08)) {
-    tips.push("眼睛不在黄金横线");
-    score -= 25;
-  }
+  goldenPoints.forEach(p => {
+    const dx = centerX - p.x;
+    const dy = eyeY - p.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < bestDistance) {
+      bestDistance = dist;
+      bestPoint = p;
+    }
+    p.el.classList.remove("highlight");
+  });
 
-  // ===== 头顶安全 =====
-  if (nose.y < 0.1) {
-    tips.push("头顶太贴边");
-    score -= 20;
-  }
+  let score = 100 - bestDistance * 400;
+  let tips = [];
 
-  // ===== 人物比例 =====
-  if (bodyHeight < 0.4) {
-    tips.push("人物太小");
-    score -= 20;
+  if (bestDistance < 0.05) {
+    bestPoint.el.classList.add("highlight");
+  } else {
+    if (centerX < bestPoint.x) tips.push("往右一点 👉");
+    if (centerX > bestPoint.x) tips.push("往左一点 👈");
+    if (eyeY < bestPoint.y) tips.push("往下一点 ⬇");
+    if (eyeY > bestPoint.y) tips.push("往上一点 ⬆");
   }
 
   if (score < 0) score = 0;
   if (score > 100) score = 100;
 
   currentScore = score;
+
+  const tipText = document.getElementById("tipText");
+  const scoreText = document.getElementById("scoreText");
+  const readyHint = document.getElementById("readyHint");
+
+  tipText.innerText = tips.length === 0 ? "构图已吸附黄金点 👍" : tips.join(" | ");
+  scoreText.innerText = "评分：" + Math.round(score);
 
   if (score >= 90) {
     shutterBtn.style.background = "lime";
@@ -213,9 +228,6 @@ function onResults(results) {
     shutterBtn.style.background = "red";
     readyHint.style.display = "none";
   }
-
-  tipText.innerText = tips.length === 0 ? "黄金构图很好 👍" : tips.join(" | ");
-  scoreText.innerText = "评分：" + score;
 }
 
 const camera = new Camera(video, {
@@ -227,7 +239,7 @@ camera.start();
 
 shutterBtn.addEventListener("click", () => {
   if (currentScore < 80) {
-    alert("还可以再优化一下构图 👍");
+    alert("再微调一下更完美 👍");
     return;
   }
   const link = document.createElement("a");
