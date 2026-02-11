@@ -120,6 +120,7 @@ const ready=document.getElementById("ready");
 
 let currentFacing="environment";
 let currentStream=null;
+let detecting=false;
 let perfect=false;
 
 let targetX=0.618;
@@ -181,9 +182,18 @@ pose.onResults(results=>{
   }
 });
 
+async function detectLoop(){
+  if(!detecting) return;
+  await pose.send({image:video});
+  requestAnimationFrame(detectLoop);
+}
+
 async function startCamera(){
+  detecting=false;
+
   if(currentStream){
     currentStream.getTracks().forEach(track=>track.stop());
+    currentStream=null;
   }
 
   const stream=await navigator.mediaDevices.getUserMedia({
@@ -194,17 +204,18 @@ async function startCamera(){
   video.srcObject=stream;
   await video.play();
 
-  detectFrame();
+  detecting=true;
+  detectLoop();
 }
 
-async function detectFrame(){
-  await pose.send({image:video});
-  requestAnimationFrame(detectFrame);
-}
+document.getElementById("switchCam").addEventListener("click",async()=>{
+  detecting=false;
 
-document.getElementById("switchCam").addEventListener("click",()=>{
   currentFacing=currentFacing==="environment"?"user":"environment";
-  startCamera();
+
+  setTimeout(()=>{
+    startCamera();
+  },200);
 });
 
 document.getElementById("shutter").addEventListener("click",()=>{
