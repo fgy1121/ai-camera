@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 女友拍照助手 7.0</title>
+<title>AI 女友拍照助手 8.0</title>
 
 <style>
 body {
@@ -22,17 +22,28 @@ video, canvas {
   object-fit: cover;
 }
 
-#guideBox {
+#overlayLines {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  width: 65vw;
-  height: 70vh;
-  transform: translate(-50%, -50%);
-  border: 4px solid red;
-  border-radius: 20px;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   pointer-events: none;
-  transition: 0.3s ease;
+}
+
+.line {
+  position: absolute;
+  background: rgba(255,255,255,0.6);
+}
+
+.vertical {
+  width: 2px;
+  height: 100%;
+}
+
+.horizontal {
+  height: 2px;
+  width: 100%;
 }
 
 #tipText {
@@ -55,6 +66,17 @@ video, canvas {
   font-weight: bold;
 }
 
+#readyHint {
+  position: fixed;
+  bottom: 170px;
+  width: 100%;
+  text-align: center;
+  font-size: 22px;
+  color: lime;
+  font-weight: bold;
+  display: none;
+}
+
 #shutterBtn {
   position: fixed;
   bottom: 30px;
@@ -67,17 +89,6 @@ video, canvas {
   background: red;
   transition: 0.3s;
 }
-
-#readyHint {
-  position: fixed;
-  bottom: 170px;
-  width: 100%;
-  text-align: center;
-  font-size: 22px;
-  color: lime;
-  font-weight: bold;
-  display: none;
-}
 </style>
 </head>
 
@@ -86,10 +97,18 @@ video, canvas {
 <video class="input_video" autoplay playsinline muted></video>
 <canvas class="output_canvas"></canvas>
 
-<div id="guideBox"></div>
+<div id="overlayLines">
+  <!-- 黄金竖线 -->
+  <div class="line vertical" style="left:38.2%;"></div>
+  <div class="line vertical" style="left:61.8%;"></div>
+  <!-- 黄金横线 -->
+  <div class="line horizontal" style="top:38.2%;"></div>
+  <div class="line horizontal" style="top:61.8%;"></div>
+</div>
+
 <div id="tipText"></div>
 <div id="scoreText"></div>
-<div id="readyHint">构图非常好，可以拍了 📸</div>
+<div id="readyHint">黄金构图达标 📸</div>
 <button id="shutterBtn"></button>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
@@ -116,6 +135,10 @@ pose.setOptions({
 
 pose.onResults(onResults);
 
+function near(value, target, tolerance) {
+  return Math.abs(value - target) < tolerance;
+}
+
 function onResults(results) {
 
   canvas.width = video.videoWidth;
@@ -126,61 +149,55 @@ function onResults(results) {
 
   const lm = results.poseLandmarks;
 
-  const nose = lm[0];
   const leftShoulder = lm[11];
   const rightShoulder = lm[12];
+  const leftEye = lm[2];
+  const rightEye = lm[5];
+  const nose = lm[0];
   const leftAnkle = lm[27];
   const rightAnkle = lm[28];
 
   const tipText = document.getElementById("tipText");
   const scoreText = document.getElementById("scoreText");
-  const guideBox = document.getElementById("guideBox");
   const readyHint = document.getElementById("readyHint");
 
   let score = 100;
   let tips = [];
 
-  // ===== 计算身体整体中心 =====
+  const shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+  const eyeY = (leftEye.y + rightEye.y) / 2;
+
   const bodyTop = nose.y;
   const bodyBottom = Math.max(leftAnkle.y, rightAnkle.y);
-  const bodyCenterY = (bodyTop + bodyBottom) / 2;
+  const bodyHeight = bodyBottom - bodyTop;
 
-  const shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+  // ===== 黄金比例判断 =====
+  const goldenLeft = 0.382;
+  const goldenRight = 0.618;
+  const goldenTop = 0.382;
 
-  // ===== 水平居中判断 =====
-  if (shoulderCenterX < 0.4) {
-    tips.push("人物偏左 👉");
-    score -= 25;
-  }
-  if (shoulderCenterX > 0.6) {
-    tips.push("人物偏右 👈");
-    score -= 25;
-  }
-
-  // ===== 垂直居中判断 =====
-  if (bodyCenterY < 0.35) {
-    tips.push("人物太靠上 📏");
-    score -= 25;
-  }
-  if (bodyCenterY > 0.65) {
-    tips.push("人物太靠下 📏");
-    score -= 25;
-  }
-
-  // ===== 头顶安全边距 =====
-  if (nose.y < 0.1) {
-    tips.push("头顶太贴边 ⚠️");
+  if (
+    !near(shoulderCenterX, goldenLeft, 0.08) &&
+    !near(shoulderCenterX, goldenRight, 0.08)
+  ) {
+    tips.push("人物未贴近黄金竖线");
     score -= 30;
   }
 
-  // ===== 人物比例 =====
-  const bodyHeight = bodyBottom - bodyTop;
-  if (bodyHeight < 0.4) {
-    tips.push("人物太小，靠近一点 👣");
+  if (!near(eyeY, goldenTop, 0.08)) {
+    tips.push("眼睛不在黄金横线");
+    score -= 25;
+  }
+
+  // ===== 头顶安全 =====
+  if (nose.y < 0.1) {
+    tips.push("头顶太贴边");
     score -= 20;
   }
-  if (bodyHeight > 0.9) {
-    tips.push("人物太大，后退一点 ↩️");
+
+  // ===== 人物比例 =====
+  if (bodyHeight < 0.4) {
+    tips.push("人物太小");
     score -= 20;
   }
 
@@ -190,16 +207,14 @@ function onResults(results) {
   currentScore = score;
 
   if (score >= 90) {
-    guideBox.style.borderColor = "lime";
     shutterBtn.style.background = "lime";
     readyHint.style.display = "block";
   } else {
-    guideBox.style.borderColor = "red";
     shutterBtn.style.background = "red";
     readyHint.style.display = "none";
   }
 
-  tipText.innerText = tips.length === 0 ? "构图很棒 👍" : tips.join(" | ");
+  tipText.innerText = tips.length === 0 ? "黄金构图很好 👍" : tips.join(" | ");
   scoreText.innerText = "评分：" + score;
 }
 
@@ -211,13 +226,12 @@ const camera = new Camera(video, {
 camera.start();
 
 shutterBtn.addEventListener("click", () => {
-  if (currentScore < 75) {
-    alert("构图还可以优化一下 👍");
+  if (currentScore < 80) {
+    alert("还可以再优化一下构图 👍");
     return;
   }
-
   const link = document.createElement("a");
-  link.download = "ai-photo.png";
+  link.download = "golden-photo.png";
   link.href = canvas.toDataURL("image/png");
   link.click();
 });
