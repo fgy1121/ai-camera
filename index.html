@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 女友拍照助手 5.0</title>
+<title>AI 女友拍照助手 6.0</title>
 
 <style>
 body {
@@ -46,23 +46,47 @@ video, canvas {
 
 #tipText {
   position: fixed;
-  bottom: 80px;
+  bottom: 120px;
   width: 100%;
   text-align: center;
-  font-size: 20px;
+  font-size: 18px;
   color: white;
   font-weight: bold;
   padding: 0 20px;
 }
 
-#countdown {
+#scoreText {
   position: fixed;
-  top: 40%;
+  bottom: 90px;
   width: 100%;
   text-align: center;
-  font-size: 80px;
+  font-size: 20px;
   color: yellow;
   font-weight: bold;
+}
+
+#shutterBtn {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 6px solid white;
+  background: red;
+  transition: all 0.3s ease;
+}
+
+#readyHint {
+  position: fixed;
+  bottom: 180px;
+  width: 100%;
+  text-align: center;
+  font-size: 22px;
+  color: lime;
+  font-weight: bold;
+  display: none;
 }
 </style>
 </head>
@@ -75,7 +99,10 @@ video, canvas {
 <div id="guideBox"></div>
 <div id="modeLabel">正在分析构图...</div>
 <div id="tipText">正在识别...</div>
-<div id="countdown"></div>
+<div id="scoreText"></div>
+<div id="readyHint">构图很好，可以拍了！📸</div>
+
+<button id="shutterBtn"></button>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -84,10 +111,9 @@ video, canvas {
 const video = document.querySelector(".input_video");
 const canvas = document.querySelector(".output_canvas");
 const ctx = canvas.getContext("2d");
+const shutterBtn = document.getElementById("shutterBtn");
 
-let isCountingDown = false;
-let lastPhotoTime = 0;
-const cooldown = 8000;
+let currentScore = 0;
 
 const pose = new Pose({
   locateFile: (file) => {
@@ -120,13 +146,13 @@ function onResults(results) {
 
   const guideBox = document.getElementById("guideBox");
   const tipText = document.getElementById("tipText");
-  const countdownEl = document.getElementById("countdown");
+  const scoreText = document.getElementById("scoreText");
   const modeLabel = document.getElementById("modeLabel");
+  const readyHint = document.getElementById("readyHint");
 
   let score = 100;
   let tips = [];
 
-  // ===== 人物高度比例计算 =====
   const bodyTop = nose.y;
   const bodyBottom = Math.max(leftAnkle.y, rightAnkle.y);
   const bodyHeight = bodyBottom - bodyTop;
@@ -136,7 +162,6 @@ function onResults(results) {
   if (bodyHeight > 0.75) {
     recommendedMode = "半身更合适 📷";
     guideBox.style.height = "55vh";
-    tips.push("可以稍微后退一点试试全身");
   } 
   else if (bodyHeight > 0.45) {
     recommendedMode = "全身构图不错 📸";
@@ -150,7 +175,6 @@ function onResults(results) {
 
   modeLabel.innerText = "AI 推荐：" + recommendedMode;
 
-  // ===== 居中判断 =====
   if (nose.x < 0.35) {
     tips.push("往右一点 👉");
     score -= 20;
@@ -159,7 +183,6 @@ function onResults(results) {
     score -= 20;
   }
 
-  // ===== 头顶安全 =====
   if (nose.y < 0.12) {
     tips.push("头顶太贴边 📏");
     score -= 20;
@@ -168,6 +191,8 @@ function onResults(results) {
   if (score > 100) score = 100;
   if (score < 0) score = 0;
 
+  currentScore = score;
+
   if (score >= 85) {
     guideBox.style.borderColor = "lime";
   } else {
@@ -175,29 +200,19 @@ function onResults(results) {
   }
 
   if (tips.length === 0) {
-    tipText.innerText = "构图很好，可以拍！ 评分：" + score;
+    tipText.innerText = "构图不错 👍";
   } else {
-    tipText.innerText = tips.join(" | ") + " 评分：" + score;
+    tipText.innerText = tips.join(" | ");
   }
 
-  const now = Date.now();
-  if (score >= 90 && !isCountingDown && now - lastPhotoTime > cooldown) {
-    isCountingDown = true;
-    let count = 3;
-    countdownEl.innerText = count;
+  scoreText.innerText = "当前评分：" + score;
 
-    const timer = setInterval(() => {
-      count--;
-      if (count > 0) {
-        countdownEl.innerText = count;
-      } else {
-        clearInterval(timer);
-        countdownEl.innerText = "";
-        takePhoto();
-        lastPhotoTime = Date.now();
-        isCountingDown = false;
-      }
-    }, 1000);
+  if (score >= 90) {
+    shutterBtn.style.background = "lime";
+    readyHint.style.display = "block";
+  } else {
+    shutterBtn.style.background = "red";
+    readyHint.style.display = "none";
   }
 }
 
@@ -211,12 +226,17 @@ const camera = new Camera(video, {
 
 camera.start();
 
-function takePhoto() {
+shutterBtn.addEventListener("click", () => {
+  if (currentScore < 70) {
+    alert("构图一般，再调整一下会更好 👍");
+    return;
+  }
+
   const link = document.createElement("a");
   link.download = "ai-photo.png";
   link.href = canvas.toDataURL("image/png");
   link.click();
-}
+});
 </script>
 
 </body>
