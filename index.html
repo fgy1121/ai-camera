@@ -1,43 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>AI摄影辅助</title>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-  <style>
-    body {
-        margin: 0;
-        overflow: hidden;
-        background: black;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 女友拍照助手</title>
+
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: black;
 }
-    video {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        object-fit: cover;
+
+video {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
 }
-    canvas {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
+
+canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
 }
-    #tip {
-      position:fixed;
-      top:20px;
-      left:50%;
-      transform:translateX(-50%);
-      color:white;
-      font-size:24px;
-      background:rgba(0,0,0,0.5);
-      padding:10px 20px;
-      border-radius:20px;
-    }
-    #guideBox {
+
+#guideBox {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -68,117 +60,127 @@
   color: yellow;
   font-weight: bold;
 }
-  </style>
+</style>
 </head>
+
 <body>
-  <video class="input_video" autoplay playsinline muted></video>
-  <canvas class="output_canvas"></canvas>
-  <div id="guideBox"></div>
-  <div id="tipText">正在识别...</div>
-  <div id="tip">正在检测...</div>
-  <div id="countdown"></div>
+
+<video class="input_video" autoplay playsinline muted></video>
+<canvas class="output_canvas"></canvas>
+<div id="guideBox"></div>
+<div id="tipText">正在识别...</div>
+<div id="countdown"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
 <script>
-let isCountingDown = false;
-const video = document.querySelector('.input_video');
-const canvas = document.querySelector('.output_canvas');
-const ctx = canvas.getContext('2d');
-const tip = document.getElementById('tip');
+const video = document.querySelector(".input_video");
+const canvas = document.querySelector(".output_canvas");
+const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+let isCountingDown = false;
 
 const pose = new Pose({
-  locateFile: file =>
-    `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+  locateFile: (file) => {
+    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+  }
 });
 
 pose.setOptions({
-  modelComplexity: 0,
+  modelComplexity: 1,
   smoothLandmarks: true,
+  enableSegmentation: false,
   minDetectionConfidence: 0.5,
   minTrackingConfidence: 0.5
 });
 
-pose.onResults(results => {
+pose.onResults(onResults);
+
+function onResults(results) {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
   if (results.poseLandmarks) {
-  const nose = results.poseLandmarks[0]; // 鼻子位置
-  const x = nose.x;
-  const y = nose.y;
+    const nose = results.poseLandmarks[0];
+    const x = nose.x;
+    const y = nose.y;
 
-  const guideBox = document.getElementById("guideBox");
-  const tipText = document.getElementById("tipText");
+    const guideBox = document.getElementById("guideBox");
+    const tipText = document.getElementById("tipText");
+    const countdownEl = document.getElementById("countdown");
 
-  let score = 100;
-  let tip = "完美，可以拍！";
+    let score = 100;
+    let tip = "完美，可以拍！";
 
-  if (x < 0.4) {
-    tip = "往右一点 👉";
-    score -= 30;
-  } else if (x > 0.6) {
-    tip = "往左一点 👈";
-    score -= 30;
-  }
-
-  if (y < 0.3) {
-    tip = "手机低一点 📱⬇️";
-    score -= 30;
-  } else if (y > 0.7) {
-    tip = "人往前一点 🙆";
-    score -= 30;
-  }
-
-  if (score >= 80) {
-    guideBox.style.borderColor = "lime";
-  } else {
-    guideBox.style.borderColor = "red";
-  }
-
-  tipText.innerText = tip + " 评分：" + score;
-}
-
-const countdownEl = document.getElementById("countdown");
-
-if (score >= 90 && !isCountingDown) {
-  isCountingDown = true;
-  let count = 3;
-
-  countdownEl.innerText = count;
-
-  const timer = setInterval(() => {
-    count--;
-    if (count > 0) {
-      countdownEl.innerText = count;
-    } else {
-      clearInterval(timer);
-      countdownEl.innerText = "";
-      takePhoto();
-      isCountingDown = false;
+    if (x < 0.4) {
+      tip = "往右一点 👉";
+      score -= 30;
+    } else if (x > 0.6) {
+      tip = "往左一点 👈";
+      score -= 30;
     }
-  }, 1000);
+
+    if (y < 0.3) {
+      tip = "手机低一点 📱⬇️";
+      score -= 30;
+    } else if (y > 0.7) {
+      tip = "人往前一点 🙆";
+      score -= 30;
+    }
+
+    if (score >= 80) {
+      guideBox.style.borderColor = "lime";
+    } else {
+      guideBox.style.borderColor = "red";
+    }
+
+    tipText.innerText = tip + " 评分：" + score;
+
+    if (score >= 90 && !isCountingDown) {
+      isCountingDown = true;
+      let count = 3;
+      countdownEl.innerText = count;
+
+      const timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownEl.innerText = count;
+        } else {
+          clearInterval(timer);
+          countdownEl.innerText = "";
+          takePhoto();
+          isCountingDown = false;
+        }
+      }, 1000);
+    }
+  }
+
+  ctx.restore();
 }
-});
 
 const camera = new Camera(video, {
   onFrame: async () => {
-    await pose.send({image: video});
+    await pose.send({ image: video });
   },
   width: 640,
   height: 480
 });
-video.setAttribute("playsinline", true);    
+
 camera.start();
 
 function takePhoto() {
-  const canvas = document.querySelector("canvas");
   const link = document.createElement("a");
-  link.download = "photo.png";
-  link.href = canvas.toDataURL();
+  link.download = "ai-photo.png";
+  link.href = canvas.toDataURL("image/png");
   link.click();
 }
 </script>
+
 </body>
 </html>
