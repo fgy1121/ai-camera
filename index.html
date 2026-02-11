@@ -77,6 +77,17 @@ video,canvas{
   border:6px solid white;
   background:red;
 }
+
+#switchCam{
+  position:fixed;
+  top:20px;
+  right:20px;
+  padding:10px 15px;
+  background:rgba(0,0,0,0.6);
+  color:white;
+  border:1px solid white;
+  border-radius:8px;
+}
 </style>
 </head>
 
@@ -93,6 +104,7 @@ video,canvas{
 <div id="ready">机位完美 ✔ 现在拍</div>
 <div id="tip">正在识别人物...</div>
 <button id="shutter"></button>
+<button id="switchCam">切换</button>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -108,6 +120,8 @@ const tip=document.getElementById("tip");
 const ready=document.getElementById("ready");
 
 let perfect=false;
+let currentFacing="environment";
+let currentStream=null;
 
 let targetX=0.618;
 let targetY=0.382;
@@ -169,56 +183,31 @@ pose.onResults(results=>{
 });
 
 async function startCamera(){
-  try{
-    await navigator.mediaDevices.getUserMedia({video:true});
-
-    const devices=await navigator.mediaDevices.enumerateDevices();
-    const videoDevices=devices.filter(d=>d.kind==="videoinput");
-
-    let selectedDevice=null;
-
-    for(const device of videoDevices){
-      const testStream=await navigator.mediaDevices.getUserMedia({
-        video:{deviceId:{exact:device.deviceId}}
-      });
-
-      const track=testStream.getVideoTracks()[0];
-      const settings=track.getSettings();
-
-      if(settings.facingMode==="environment"){
-        selectedDevice=device;
-        testStream.getTracks().forEach(t=>t.stop());
-        break;
-      }
-
-      testStream.getTracks().forEach(t=>t.stop());
-    }
-
-    if(!selectedDevice && videoDevices.length>0){
-      selectedDevice=videoDevices[videoDevices.length-1];
-    }
-
-    const stream=await navigator.mediaDevices.getUserMedia({
-      video:{deviceId:{exact:selectedDevice.deviceId}}
-    });
-
-    video.srcObject=stream;
-    video.play();
-
-    const camera=new Camera(video,{
-      onFrame:async()=>await pose.send({image:video}),
-      width:640,
-      height:480
-    });
-
-    camera.start();
-
-  }catch(err){
-    alert("摄像头启动失败："+err);
+  if(currentStream){
+    currentStream.getTracks().forEach(track=>track.stop());
   }
+
+  const stream=await navigator.mediaDevices.getUserMedia({
+    video:{facingMode:currentFacing}
+  });
+
+  currentStream=stream;
+  video.srcObject=stream;
+  video.play();
+
+  const camera=new Camera(video,{
+    onFrame:async()=>await pose.send({image:video}),
+    width:640,
+    height:480
+  });
+
+  camera.start();
 }
 
-startCamera();
+document.getElementById("switchCam").addEventListener("click",()=>{
+  currentFacing = currentFacing==="environment" ? "user" : "environment";
+  startCamera();
+});
 
 document.getElementById("shutter").addEventListener("click",()=>{
   if(!perfect){
@@ -230,6 +219,8 @@ document.getElementById("shutter").addEventListener("click",()=>{
   link.href=canvas.toDataURL("image/png");
   link.click();
 });
+
+startCamera();
 </script>
 
 </body>
