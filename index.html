@@ -37,11 +37,34 @@
       padding:10px 20px;
       border-radius:20px;
     }
+    #guideBox {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 60vw;
+  height: 70vh;
+  transform: translate(-50%, -50%);
+  border: 4px solid red;
+  border-radius: 20px;
+  pointer-events: none;
+}
+
+#tipText {
+  position: fixed;
+  bottom: 80px;
+  width: 100%;
+  text-align: center;
+  font-size: 22px;
+  color: white;
+  font-weight: bold;
+}
   </style>
 </head>
 <body>
   <video class="input_video" autoplay playsinline muted></video>
   <canvas class="output_canvas"></canvas>
+  <div id="guideBox"></div>
+  <div id="tipText">正在识别...</div>
   <div id="tip">正在检测...</div>
 
 <script>
@@ -70,20 +93,41 @@ pose.onResults(results => {
   ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
   if (results.poseLandmarks) {
-    let leftShoulder = results.poseLandmarks[11];
-    let rightShoulder = results.poseLandmarks[12];
+  const nose = results.poseLandmarks[0]; // 鼻子位置
+  const x = nose.x;
+  const y = nose.y;
 
-    let shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+  const guideBox = document.getElementById("guideBox");
+  const tipText = document.getElementById("tipText");
 
-    if (shoulderWidth > 0.3) {
-      tip.innerText = "稍微侧身会更显瘦";
-    } else {
-      tip.innerText = "姿势不错 👍";
-      if (navigator.vibrate) {
-        navigator.vibrate(100);
-      }
-    }
+  let score = 100;
+  let tip = "完美，可以拍！";
+
+  if (x < 0.4) {
+    tip = "往右一点 👉";
+    score -= 30;
+  } else if (x > 0.6) {
+    tip = "往左一点 👈";
+    score -= 30;
   }
+
+  if (y < 0.3) {
+    tip = "手机低一点 📱⬇️";
+    score -= 30;
+  } else if (y > 0.7) {
+    tip = "人往前一点 🙆";
+    score -= 30;
+  }
+
+  if (score >= 80) {
+    guideBox.style.borderColor = "lime";
+  } else {
+    guideBox.style.borderColor = "red";
+  }
+
+  tipText.innerText = tip + " 评分：" + score;
+}
+
 });
 
 const camera = new Camera(video, {
