@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 摄影导航系统 1.0</title>
+<title>AI 摄影导航系统</title>
 
 <style>
 body{
@@ -31,8 +31,8 @@ video,canvas{
 
 #targetDot{
   position:absolute;
-  width:16px;
-  height:16px;
+  width:18px;
+  height:18px;
   border-radius:50%;
   background:white;
   transform:translate(-50%,-50%);
@@ -109,13 +109,14 @@ const ready=document.getElementById("ready");
 
 let perfect=false;
 
-// ===== 黄金目标点（右黄金点）=====
-const targetX=0.618;
-const targetY=0.382;
+// ===== 黄金构图点（右上黄金点）=====
+let targetX=0.618;
+let targetY=0.382;
 
 targetDot.style.left=(targetX*100)+"%";
 targetDot.style.top=(targetY*100)+"%";
 
+// ===== 初始化姿态识别 =====
 const pose=new Pose({
   locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
 });
@@ -148,8 +149,7 @@ pose.onResults(results=>{
 
   const distance=Math.sqrt(dx*dx+dy*dy);
 
-  // 圆圈大小随距离变化
-  const size=Math.max(20, distance*800);
+  const size=Math.max(20,distance*800);
 
   moveCircle.style.width=size+"px";
   moveCircle.style.height=size+"px";
@@ -176,20 +176,55 @@ pose.onResults(results=>{
   }
 });
 
-// 强制后置摄像头
-navigator.mediaDevices.getUserMedia({
-  video:{facingMode:{exact:"environment"}}
-}).then(stream=>{
-  video.srcObject=stream;
-  video.play();
-  const camera=new Camera(video,{
-    onFrame:async()=>await pose.send({image:video}),
-    width:640,
-    height:480
-  });
-  camera.start();
-});
+// ===== 强制优先后置摄像头 =====
+async function startCamera(){
 
+  try{
+    await navigator.mediaDevices.getUserMedia({video:true});
+
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    const videoDevices=devices.filter(d=>d.kind==="videoinput");
+
+    let backCamera=videoDevices.find(d=>
+      d.label.toLowerCase().includes("back") ||
+      d.label.toLowerCase().includes("rear") ||
+      d.label.toLowerCase().includes("environment")
+    );
+
+    if(!backCamera && videoDevices.length>0){
+      backCamera=videoDevices[videoDevices.length-1];
+    }
+
+    if(!backCamera){
+      alert("没有找到摄像头");
+      return;
+    }
+
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{
+        deviceId:{exact:backCamera.deviceId}
+      }
+    });
+
+    video.srcObject=stream;
+    video.play();
+
+    const camera=new Camera(video,{
+      onFrame:async()=>await pose.send({image:video}),
+      width:640,
+      height:480
+    });
+
+    camera.start();
+
+  }catch(err){
+    alert("摄像头启动失败: "+err);
+  }
+}
+
+startCamera();
+
+// ===== 手动拍照 =====
 document.getElementById("shutter").addEventListener("click",()=>{
   if(!perfect){
     alert("机位还没对齐");
