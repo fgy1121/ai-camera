@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 女友拍照助手 4.0</title>
+<title>AI 女友拍照助手 5.0</title>
 
 <style>
 body {
@@ -27,7 +27,6 @@ video, canvas {
   top: 50%;
   left: 50%;
   width: 60vw;
-  height: 70vh;
   transform: translate(-50%, -50%);
   border: 4px solid red;
   border-radius: 20px;
@@ -74,7 +73,7 @@ video, canvas {
 <canvas class="output_canvas"></canvas>
 
 <div id="guideBox"></div>
-<div id="modeLabel">正在识别模式...</div>
+<div id="modeLabel">正在分析构图...</div>
 <div id="tipText">正在识别...</div>
 <div id="countdown"></div>
 
@@ -127,16 +126,29 @@ function onResults(results) {
   let score = 100;
   let tips = [];
 
-  // ===== 自动模式判断 =====
-  const fullBodyDetected = leftAnkle.y < 0.98 && rightAnkle.y < 0.98;
+  // ===== 人物高度比例计算 =====
+  const bodyTop = nose.y;
+  const bodyBottom = Math.max(leftAnkle.y, rightAnkle.y);
+  const bodyHeight = bodyBottom - bodyTop;
 
-  if (fullBodyDetected) {
-    modeLabel.innerText = "📸 全身模式";
-    guideBox.style.height = "75vh";
-  } else {
-    modeLabel.innerText = "📷 半身模式";
+  let recommendedMode = "";
+
+  if (bodyHeight > 0.75) {
+    recommendedMode = "半身更合适 📷";
     guideBox.style.height = "55vh";
+    tips.push("可以稍微后退一点试试全身");
+  } 
+  else if (bodyHeight > 0.45) {
+    recommendedMode = "全身构图不错 📸";
+    guideBox.style.height = "75vh";
+  } 
+  else {
+    recommendedMode = "人物太小，靠近一点 👣";
+    guideBox.style.height = "75vh";
+    score -= 30;
   }
+
+  modeLabel.innerText = "AI 推荐：" + recommendedMode;
 
   // ===== 居中判断 =====
   if (nose.x < 0.35) {
@@ -147,18 +159,10 @@ function onResults(results) {
     score -= 20;
   }
 
-  // ===== 头顶安全距离 =====
+  // ===== 头顶安全 =====
   if (nose.y < 0.12) {
     tips.push("头顶太贴边 📏");
-    score -= 25;
-  }
-
-  // ===== 全身模式下检查脚 =====
-  if (fullBodyDetected) {
-    if (leftAnkle.y > 0.95 || rightAnkle.y > 0.95) {
-      tips.push("脚被裁了 📸⬇️");
-      score -= 25;
-    }
+    score -= 20;
   }
 
   if (score > 100) score = 100;
