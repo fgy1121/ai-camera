@@ -109,14 +109,12 @@ const ready=document.getElementById("ready");
 
 let perfect=false;
 
-// ===== 黄金构图点（右上黄金点）=====
 let targetX=0.618;
 let targetY=0.382;
 
 targetDot.style.left=(targetX*100)+"%";
 targetDot.style.top=(targetY*100)+"%";
 
-// ===== 初始化姿态识别 =====
 const pose=new Pose({
   locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
 });
@@ -136,17 +134,11 @@ pose.onResults(results=>{
   if(!results.poseLandmarks)return;
 
   const lm=results.poseLandmarks;
-  const leftShoulder=lm[11];
-  const rightShoulder=lm[12];
-  const leftEye=lm[2];
-  const rightEye=lm[5];
-
-  const centerX=(leftShoulder.x+rightShoulder.x)/2;
-  const eyeY=(leftEye.y+rightEye.y)/2;
+  const centerX=(lm[11].x+lm[12].x)/2;
+  const eyeY=(lm[2].y+lm[5].y)/2;
 
   const dx=centerX-targetX;
   const dy=eyeY-targetY;
-
   const distance=Math.sqrt(dx*dx+dy*dy);
 
   const size=Math.max(20,distance*800);
@@ -166,44 +158,48 @@ pose.onResults(results=>{
     ready.style.display="none";
     perfect=false;
 
-    let messages=[];
-    if(dx>0)messages.push("往左移动");
-    if(dx<0)messages.push("往右移动");
-    if(dy>0)messages.push("手机往上抬");
-    if(dy<0)messages.push("手机往下压");
+    let msg=[];
+    if(dx>0)msg.push("往左移动");
+    if(dx<0)msg.push("往右移动");
+    if(dy>0)msg.push("手机往上抬");
+    if(dy<0)msg.push("手机往下压");
 
-    tip.innerText=messages.join("  ");
+    tip.innerText=msg.join("  ");
   }
 });
 
-// ===== 强制优先后置摄像头 =====
 async function startCamera(){
-
   try{
     await navigator.mediaDevices.getUserMedia({video:true});
 
     const devices=await navigator.mediaDevices.enumerateDevices();
     const videoDevices=devices.filter(d=>d.kind==="videoinput");
 
-    let backCamera=videoDevices.find(d=>
-      d.label.toLowerCase().includes("back") ||
-      d.label.toLowerCase().includes("rear") ||
-      d.label.toLowerCase().includes("environment")
-    );
+    let selectedDevice=null;
 
-    if(!backCamera && videoDevices.length>0){
-      backCamera=videoDevices[videoDevices.length-1];
+    for(const device of videoDevices){
+      const testStream=await navigator.mediaDevices.getUserMedia({
+        video:{deviceId:{exact:device.deviceId}}
+      });
+
+      const track=testStream.getVideoTracks()[0];
+      const settings=track.getSettings();
+
+      if(settings.facingMode==="environment"){
+        selectedDevice=device;
+        testStream.getTracks().forEach(t=>t.stop());
+        break;
+      }
+
+      testStream.getTracks().forEach(t=>t.stop());
     }
 
-    if(!backCamera){
-      alert("没有找到摄像头");
-      return;
+    if(!selectedDevice && videoDevices.length>0){
+      selectedDevice=videoDevices[videoDevices.length-1];
     }
 
     const stream=await navigator.mediaDevices.getUserMedia({
-      video:{
-        deviceId:{exact:backCamera.deviceId}
-      }
+      video:{deviceId:{exact:selectedDevice.deviceId}}
     });
 
     video.srcObject=stream;
@@ -218,13 +214,12 @@ async function startCamera(){
     camera.start();
 
   }catch(err){
-    alert("摄像头启动失败: "+err);
+    alert("摄像头启动失败："+err);
   }
 }
 
 startCamera();
 
-// ===== 手动拍照 =====
 document.getElementById("shutter").addEventListener("click",()=>{
   if(!perfect){
     alert("机位还没对齐");
