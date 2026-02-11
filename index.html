@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 女友拍照助手</title>
+<title>AI 女友拍照助手 3.0</title>
 
 <style>
 body {
   margin: 0;
   overflow: hidden;
   background: black;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 video {
@@ -39,6 +40,7 @@ canvas {
   border: 4px solid red;
   border-radius: 20px;
   pointer-events: none;
+  transition: border-color 0.2s ease;
 }
 
 #tipText {
@@ -46,9 +48,10 @@ canvas {
   bottom: 80px;
   width: 100%;
   text-align: center;
-  font-size: 22px;
+  font-size: 20px;
   color: white;
   font-weight: bold;
+  padding: 0 20px;
 }
 
 #countdown {
@@ -60,6 +63,24 @@ canvas {
   color: yellow;
   font-weight: bold;
 }
+
+#scoreBar {
+  position: fixed;
+  bottom: 40px;
+  left: 10%;
+  width: 80%;
+  height: 8px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+#scoreFill {
+  height: 100%;
+  width: 0%;
+  background: lime;
+  transition: width 0.2s ease;
+}
 </style>
 </head>
 
@@ -67,13 +88,17 @@ canvas {
 
 <video class="input_video" autoplay playsinline muted></video>
 <canvas class="output_canvas"></canvas>
+
 <div id="guideBox"></div>
 <div id="tipText">正在识别...</div>
 <div id="countdown"></div>
 
+<div id="scoreBar">
+  <div id="scoreFill"></div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
 <script>
 const video = document.querySelector(".input_video");
@@ -81,6 +106,8 @@ const canvas = document.querySelector(".output_canvas");
 const ctx = canvas.getContext("2d");
 
 let isCountingDown = false;
+let lastPhotoTime = 0;
+const cooldown = 8000; // 8秒冷却
 
 const pose = new Pose({
   locateFile: (file) => {
@@ -99,69 +126,101 @@ pose.setOptions({
 pose.onResults(onResults);
 
 function onResults(results) {
+
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
 
-  ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-  if (results.poseLandmarks) {
-    const nose = results.poseLandmarks[0];
-    const x = nose.x;
-    const y = nose.y;
+  if (!results.poseLandmarks) return;
 
-    const guideBox = document.getElementById("guideBox");
-    const tipText = document.getElementById("tipText");
-    const countdownEl = document.getElementById("countdown");
+  const landmarks = results.poseLandmarks;
 
-    let score = 100;
-    let tip = "完美，可以拍！";
+  const nose = landmarks[0];
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const leftAnkle = landmarks[27];
+  const rightAnkle = landmarks[28];
 
-    if (x < 0.4) {
-      tip = "往右一点 👉";
-      score -= 30;
-    } else if (x > 0.6) {
-      tip = "往左一点 👈";
-      score -= 30;
-    }
+  const guideBox = document.getElementById("guideBox");
+  const tipText = document.getElementById("tipText");
+  const countdownEl = document.getElementById("countdown");
+  const scoreFill = document.getElementById("scoreFill");
 
-    if (y < 0.3) {
-      tip = "手机低一点 📱⬇️";
-      score -= 30;
-    } else if (y > 0.7) {
-      tip = "人往前一点 🙆";
-      score -= 30;
-    }
+  let score = 100;
+  let tips = [];
 
-    if (score >= 80) {
-      guideBox.style.borderColor = "lime";
-    } else {
-      guideBox.style.borderColor = "red";
-    }
-
-    tipText.innerText = tip + " 评分：" + score;
-
-    if (score >= 90 && !isCountingDown) {
-      isCountingDown = true;
-      let count = 3;
-      countdownEl.innerText = count;
-
-      const timer = setInterval(() => {
-        count--;
-        if (count > 0) {
-          countdownEl.innerText = count;
-        } else {
-          clearInterval(timer);
-          countdownEl.innerText = "";
-          takePhoto();
-          isCountingDown = false;
-        }
-      }, 1000);
-    }
+  // ===== 居中判断 =====
+  if (nose.x < 0.35) {
+    tips.push("往右一点 👉");
+    score -= 20;
+  } else if (nose.x > 0.65) {
+    tips.push("往左一点 👈");
+    score -= 20;
   }
 
-  ctx.restore();
+  // ===== 头顶安全距离 =====
+  if (nose.y < 0.15) {
+    tips.push("头顶太贴边 📏");
+    score -= 25;
+  }
+
+  // ===== 脚是否被裁 =====
+  if (leftAnkle.y > 0.95 || rightAnkle.y > 0.95) {
+    tips.push("脚被裁了 📸⬇️");
+    score -= 25;
+  }
+
+  // ===== 身体是否歪 =====
+  const shoulderDiff = Math.abs(leftShoulder.y - rightShoulder.y);
+  if (shoulderDiff > 0.05) {
+    tips.push("身体有点歪 🤏");
+    score -= 15;
+  }
+
+  // ===== 黄金分割优化 =====
+  if (nose.x > 0.38 && nose.x < 0.62) {
+    score += 10;
+  }
+
+  if (score > 100) score = 100;
+  if (score < 0) score = 0;
+
+  scoreFill.style.width = score + "%";
+
+  if (score >= 85) {
+    guideBox.style.borderColor = "lime";
+  } else {
+    guideBox.style.borderColor = "red";
+  }
+
+  if (tips.length === 0) {
+    tipText.innerText = "构图很好，可以拍！ 评分：" + score;
+  } else {
+    tipText.innerText = tips.join(" | ") + " 评分：" + score;
+  }
+
+  // ===== 自动拍照 + 冷却机制 =====
+  const now = Date.now();
+  if (score >= 90 && !isCountingDown && now - lastPhotoTime > cooldown) {
+    isCountingDown = true;
+    let count = 3;
+    countdownEl.innerText = count;
+
+    const timer = setInterval(() => {
+      count--;
+      if (count > 0) {
+        countdownEl.innerText = count;
+      } else {
+        clearInterval(timer);
+        countdownEl.innerText = "";
+        takePhoto();
+        lastPhotoTime = Date.now();
+        isCountingDown = false;
+      }
+    }, 1000);
+  }
 }
 
 const camera = new Camera(video, {
