@@ -107,7 +107,6 @@ video,canvas{
 <button id="switchCam">切换</button>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
 <script>
 const video=document.getElementById("video");
@@ -119,9 +118,9 @@ const moveCircle=document.getElementById("moveCircle");
 const tip=document.getElementById("tip");
 const ready=document.getElementById("ready");
 
-let perfect=false;
 let currentFacing="environment";
 let currentStream=null;
+let perfect=false;
 
 let targetX=0.618;
 let targetY=0.382;
@@ -193,19 +192,18 @@ async function startCamera(){
 
   currentStream=stream;
   video.srcObject=stream;
-  video.play();
+  await video.play();
 
-  const camera=new Camera(video,{
-    onFrame:async()=>await pose.send({image:video}),
-    width:640,
-    height:480
-  });
+  detectFrame();
+}
 
-  camera.start();
+async function detectFrame(){
+  await pose.send({image:video});
+  requestAnimationFrame(detectFrame);
 }
 
 document.getElementById("switchCam").addEventListener("click",()=>{
-  currentFacing = currentFacing==="environment" ? "user" : "environment";
+  currentFacing=currentFacing==="environment"?"user":"environment";
   startCamera();
 });
 
