@@ -3,62 +3,61 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 女友拍照助手 10.0</title>
+<title>AI 摄影导航系统 1.0</title>
 
 <style>
-body {
-  margin: 0;
-  overflow: hidden;
-  background: black;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+body{
+  margin:0;
+  overflow:hidden;
+  background:black;
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
 }
 
-video, canvas {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  object-fit: cover;
+video,canvas{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100vw;
+  height:100vh;
+  object-fit:cover;
 }
 
-.line {
-  position: absolute;
-  background: rgba(255,255,255,0.4);
-}
-.vertical { width:2px;height:100%; }
-.horizontal { height:2px;width:100%; }
-
-#overlay {
-  position: fixed;
+#overlay{
+  position:fixed;
   width:100vw;
   height:100vh;
   pointer-events:none;
 }
 
-#tipText {
-  position: fixed;
+#targetDot{
+  position:absolute;
+  width:16px;
+  height:16px;
+  border-radius:50%;
+  background:white;
+  transform:translate(-50%,-50%);
+}
+
+#moveCircle{
+  position:absolute;
+  border:3px solid red;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+}
+
+#tip{
+  position:fixed;
   bottom:120px;
   width:100%;
   text-align:center;
   color:white;
-  font-size:18px;
-  font-weight:bold;
-}
-
-#scoreText {
-  position: fixed;
-  bottom:90px;
-  width:100%;
-  text-align:center;
-  color:yellow;
   font-size:20px;
   font-weight:bold;
 }
 
-#readyHint {
-  position: fixed;
-  bottom:170px;
+#ready{
+  position:fixed;
+  bottom:160px;
   width:100%;
   text-align:center;
   font-size:22px;
@@ -67,8 +66,8 @@ video, canvas {
   display:none;
 }
 
-#shutterBtn {
-  position: fixed;
+#shutter{
+  position:fixed;
   bottom:30px;
   left:50%;
   transform:translateX(-50%);
@@ -77,150 +76,129 @@ video, canvas {
   border-radius:50%;
   border:6px solid white;
   background:red;
-  transition:0.3s;
 }
 </style>
 </head>
 
 <body>
 
-<video class="input_video" autoplay playsinline muted></video>
-<canvas class="output_canvas"></canvas>
+<video id="video" autoplay playsinline muted></video>
+<canvas id="canvas"></canvas>
 
 <div id="overlay">
-  <div class="line vertical" style="left:38.2%;"></div>
-  <div class="line vertical" style="left:61.8%;"></div>
-  <div class="line horizontal" style="top:38.2%;"></div>
+  <div id="targetDot"></div>
+  <div id="moveCircle"></div>
 </div>
 
-<div id="tipText"></div>
-<div id="scoreText"></div>
-<div id="readyHint">构图+显瘦角度达标 📸</div>
-<button id="shutterBtn"></button>
+<div id="ready">机位完美 ✔ 现在拍</div>
+<div id="tip">正在识别人物...</div>
+<button id="shutter"></button>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
 <script>
-const video=document.querySelector(".input_video");
-const canvas=document.querySelector(".output_canvas");
+const video=document.getElementById("video");
+const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
-const shutterBtn=document.getElementById("shutterBtn");
 
-let currentScore=0;
+const targetDot=document.getElementById("targetDot");
+const moveCircle=document.getElementById("moveCircle");
+const tip=document.getElementById("tip");
+const ready=document.getElementById("ready");
+
+let perfect=false;
+
+// ===== 黄金目标点（右黄金点）=====
+const targetX=0.618;
+const targetY=0.382;
+
+targetDot.style.left=(targetX*100)+"%";
+targetDot.style.top=(targetY*100)+"%";
 
 const pose=new Pose({
- locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+  locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
 });
 
 pose.setOptions({
- modelComplexity:1,
- smoothLandmarks:true,
- minDetectionConfidence:0.6,
- minTrackingConfidence:0.6
+  modelComplexity:1,
+  smoothLandmarks:true,
+  minDetectionConfidence:0.6,
+  minTrackingConfidence:0.6
 });
 
-pose.onResults(onResults);
+pose.onResults(results=>{
+  canvas.width=video.videoWidth;
+  canvas.height=video.videoHeight;
+  ctx.drawImage(results.image,0,0,canvas.width,canvas.height);
 
-function onResults(results){
+  if(!results.poseLandmarks)return;
 
- canvas.width=video.videoWidth;
- canvas.height=video.videoHeight;
- ctx.drawImage(results.image,0,0,canvas.width,canvas.height);
+  const lm=results.poseLandmarks;
+  const leftShoulder=lm[11];
+  const rightShoulder=lm[12];
+  const leftEye=lm[2];
+  const rightEye=lm[5];
 
- if(!results.poseLandmarks)return;
+  const centerX=(leftShoulder.x+rightShoulder.x)/2;
+  const eyeY=(leftEye.y+rightEye.y)/2;
 
- const lm=results.poseLandmarks;
+  const dx=centerX-targetX;
+  const dy=eyeY-targetY;
 
- const leftShoulder=lm[11];
- const rightShoulder=lm[12];
- const leftHip=lm[23];
- const rightHip=lm[24];
- const leftEye=lm[2];
- const rightEye=lm[5];
+  const distance=Math.sqrt(dx*dx+dy*dy);
 
- const shoulderWidth=Math.abs(leftShoulder.x-rightShoulder.x);
- const hipWidth=Math.abs(leftHip.x-rightHip.x);
+  // 圆圈大小随距离变化
+  const size=Math.max(20, distance*800);
 
- const bodyThicknessRatio=shoulderWidth/hipWidth;
+  moveCircle.style.width=size+"px";
+  moveCircle.style.height=size+"px";
+  moveCircle.style.left=(targetX*100)+"%";
+  moveCircle.style.top=(targetY*100)+"%";
 
- const centerX=(leftShoulder.x+rightShoulder.x)/2;
- const eyeY=(leftEye.y+rightEye.y)/2;
+  if(distance<0.03){
+    moveCircle.style.borderColor="lime";
+    ready.style.display="block";
+    tip.innerText="保持位置，构图完美";
+    perfect=true;
+  }else{
+    moveCircle.style.borderColor="red";
+    ready.style.display="none";
+    perfect=false;
 
- let score=100;
- let tips=[];
+    let messages=[];
+    if(dx>0)messages.push("往左移动");
+    if(dx<0)messages.push("往右移动");
+    if(dy>0)messages.push("手机往上抬");
+    if(dy<0)messages.push("手机往下压");
 
- // ===== 黄金构图 =====
- const goldenX1=0.382;
- const goldenX2=0.618;
- const goldenY=0.382;
-
- const distX=Math.min(Math.abs(centerX-goldenX1),Math.abs(centerX-goldenX2));
- const distY=Math.abs(eyeY-goldenY);
-
- score-=distX*300;
- score-=distY*300;
-
- if(distX>0.08){
-   if(centerX<0.5)tips.push("往右移动一点 👉");
-   else tips.push("往左移动一点 👈");
- }
-
- if(distY>0.08){
-   if(eyeY<goldenY)tips.push("镜头往下一点 ⬇");
-   else tips.push("镜头往上一点 ⬆");
- }
-
- // ===== 45° 侧身显瘦检测 =====
- // 正面时 shoulderWidth 接近 hipWidth
- // 侧身时 shoulderWidth 会明显变窄
-
- if(bodyThicknessRatio>0.9){
-   tips.push("稍微侧身 30°-45° 更显瘦 ↩️");
-   score-=15;
- }
- else if(bodyThicknessRatio<0.6){
-   tips.push("侧身很好，很显瘦 👍");
-   score+=10;
- }
-
- if(score<0)score=0;
- if(score>100)score=100;
-
- currentScore=score;
-
- const tipText=document.getElementById("tipText");
- const scoreText=document.getElementById("scoreText");
- const readyHint=document.getElementById("readyHint");
-
- tipText.innerText=tips.length===0?"构图+角度都很好 👍":tips.join(" | ");
- scoreText.innerText="评分："+Math.round(score);
-
- if(score>=90){
-   shutterBtn.style.background="lime";
-   readyHint.style.display="block";
- }else{
-   shutterBtn.style.background="red";
-   readyHint.style.display="none";
- }
-}
-
-const camera=new Camera(video,{
- onFrame:async()=>await pose.send({image:video}),
- width:640,
- height:480
+    tip.innerText=messages.join("  ");
+  }
 });
-camera.start();
 
-shutterBtn.addEventListener("click",()=>{
- if(currentScore<80){
-   alert("再微调一下会更好 👍");
-   return;
- }
- const link=document.createElement("a");
- link.download="slim-photo.png";
- link.href=canvas.toDataURL("image/png");
- link.click();
+// 强制后置摄像头
+navigator.mediaDevices.getUserMedia({
+  video:{facingMode:{exact:"environment"}}
+}).then(stream=>{
+  video.srcObject=stream;
+  video.play();
+  const camera=new Camera(video,{
+    onFrame:async()=>await pose.send({image:video}),
+    width:640,
+    height:480
+  });
+  camera.start();
+});
+
+document.getElementById("shutter").addEventListener("click",()=>{
+  if(!perfect){
+    alert("机位还没对齐");
+    return;
+  }
+  const link=document.createElement("a");
+  link.download="perfect-shot.png";
+  link.href=canvas.toDataURL("image/png");
+  link.click();
 });
 </script>
 
