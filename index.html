@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <video class="input_video" style="display:none;"></video>
+  <video class="input_video" autoplay playsinline muted></video>
   <canvas class="output_canvas"></canvas>
   <div id="tip">正在检测...</div>
 
@@ -75,6 +75,7 @@ const camera = new Camera(video, {
   width: 640,
   height: 480
 });
+video.setAttribute("playsinline", true);    
 camera.start();
 </script>
 </body>
