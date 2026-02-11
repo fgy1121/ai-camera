@@ -6,8 +6,26 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
   <style>
-    body { margin:0; overflow:hidden; background:black; }
-    canvas { position:absolute; }
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: black;
+}
+    video {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+}
+    canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+}
     #tip {
       position:fixed;
       top:20px;
