@@ -58,6 +58,16 @@
   color: white;
   font-weight: bold;
 }
+
+#countdown {
+  position: fixed;
+  top: 40%;
+  width: 100%;
+  text-align: center;
+  font-size: 80px;
+  color: yellow;
+  font-weight: bold;
+}
   </style>
 </head>
 <body>
@@ -66,8 +76,10 @@
   <div id="guideBox"></div>
   <div id="tipText">正在识别...</div>
   <div id="tip">正在检测...</div>
+  <div id="countdown"></div>
 
 <script>
+let isCountingDown = false;
 const video = document.querySelector('.input_video');
 const canvas = document.querySelector('.output_canvas');
 const ctx = canvas.getContext('2d');
@@ -128,6 +140,26 @@ pose.onResults(results => {
   tipText.innerText = tip + " 评分：" + score;
 }
 
+const countdownEl = document.getElementById("countdown");
+
+if (score >= 90 && !isCountingDown) {
+  isCountingDown = true;
+  let count = 3;
+
+  countdownEl.innerText = count;
+
+  const timer = setInterval(() => {
+    count--;
+    if (count > 0) {
+      countdownEl.innerText = count;
+    } else {
+      clearInterval(timer);
+      countdownEl.innerText = "";
+      takePhoto();
+      isCountingDown = false;
+    }
+  }, 1000);
+}
 });
 
 const camera = new Camera(video, {
@@ -139,6 +171,14 @@ const camera = new Camera(video, {
 });
 video.setAttribute("playsinline", true);    
 camera.start();
+
+function takePhoto() {
+  const canvas = document.querySelector("canvas");
+  const link = document.createElement("a");
+  link.download = "photo.png";
+  link.href = canvas.toDataURL();
+  link.click();
+}
 </script>
 </body>
 </html>
