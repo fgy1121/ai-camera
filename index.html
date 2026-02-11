@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 女友拍照助手 9.0</title>
+<title>AI 女友拍照助手 10.0</title>
 
 <style>
 body {
@@ -22,88 +22,62 @@ video, canvas {
   object-fit: cover;
 }
 
-#overlay {
-  position: fixed;
-  width: 100vw;
-  height: 100vh;
-  pointer-events: none;
-}
-
 .line {
   position: absolute;
   background: rgba(255,255,255,0.4);
 }
+.vertical { width:2px;height:100%; }
+.horizontal { height:2px;width:100%; }
 
-.vertical { width: 2px; height: 100%; }
-.horizontal { height: 2px; width: 100%; }
-
-.golden-point {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: white;
-  transform: translate(-50%, -50%);
-  opacity: 0.6;
-}
-
-.highlight {
-  background: lime !important;
-  box-shadow: 0 0 20px lime;
-  opacity: 1;
-}
-
-#centerDot {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: red;
-  transform: translate(-50%, -50%);
+#overlay {
+  position: fixed;
+  width:100vw;
+  height:100vh;
+  pointer-events:none;
 }
 
 #tipText {
   position: fixed;
-  bottom: 120px;
-  width: 100%;
-  text-align: center;
-  color: white;
-  font-size: 18px;
-  font-weight: bold;
+  bottom:120px;
+  width:100%;
+  text-align:center;
+  color:white;
+  font-size:18px;
+  font-weight:bold;
 }
 
 #scoreText {
   position: fixed;
-  bottom: 90px;
-  width: 100%;
-  text-align: center;
-  color: yellow;
-  font-size: 20px;
-  font-weight: bold;
+  bottom:90px;
+  width:100%;
+  text-align:center;
+  color:yellow;
+  font-size:20px;
+  font-weight:bold;
 }
 
 #readyHint {
   position: fixed;
-  bottom: 170px;
-  width: 100%;
-  text-align: center;
-  font-size: 22px;
-  color: lime;
-  font-weight: bold;
-  display: none;
+  bottom:170px;
+  width:100%;
+  text-align:center;
+  font-size:22px;
+  color:lime;
+  font-weight:bold;
+  display:none;
 }
 
 #shutterBtn {
   position: fixed;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  border: 6px solid white;
-  background: red;
-  transition: 0.3s;
+  bottom:30px;
+  left:50%;
+  transform:translateX(-50%);
+  width:80px;
+  height:80px;
+  border-radius:50%;
+  border:6px solid white;
+  background:red;
+  transition:0.3s;
 }
 </style>
 </head>
@@ -114,138 +88,139 @@ video, canvas {
 <canvas class="output_canvas"></canvas>
 
 <div id="overlay">
-  <!-- 黄金线 -->
   <div class="line vertical" style="left:38.2%;"></div>
   <div class="line vertical" style="left:61.8%;"></div>
   <div class="line horizontal" style="top:38.2%;"></div>
-
-  <!-- 黄金交叉点 -->
-  <div id="gp1" class="golden-point" style="left:38.2%; top:38.2%;"></div>
-  <div id="gp2" class="golden-point" style="left:61.8%; top:38.2%;"></div>
-
-  <!-- 人物中心点 -->
-  <div id="centerDot"></div>
 </div>
 
 <div id="tipText"></div>
 <div id="scoreText"></div>
-<div id="readyHint">已吸附黄金点 📸</div>
+<div id="readyHint">构图+显瘦角度达标 📸</div>
 <button id="shutterBtn"></button>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
 <script>
-const video = document.querySelector(".input_video");
-const canvas = document.querySelector(".output_canvas");
-const ctx = canvas.getContext("2d");
-const shutterBtn = document.getElementById("shutterBtn");
+const video=document.querySelector(".input_video");
+const canvas=document.querySelector(".output_canvas");
+const ctx=canvas.getContext("2d");
+const shutterBtn=document.getElementById("shutterBtn");
 
-let currentScore = 0;
+let currentScore=0;
 
-const pose = new Pose({
-  locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+const pose=new Pose({
+ locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
 });
 
 pose.setOptions({
-  modelComplexity: 1,
-  smoothLandmarks: true,
-  minDetectionConfidence: 0.6,
-  minTrackingConfidence: 0.6
+ modelComplexity:1,
+ smoothLandmarks:true,
+ minDetectionConfidence:0.6,
+ minTrackingConfidence:0.6
 });
 
 pose.onResults(onResults);
 
-function onResults(results) {
+function onResults(results){
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+ canvas.width=video.videoWidth;
+ canvas.height=video.videoHeight;
+ ctx.drawImage(results.image,0,0,canvas.width,canvas.height);
 
-  if (!results.poseLandmarks) return;
+ if(!results.poseLandmarks)return;
 
-  const lm = results.poseLandmarks;
+ const lm=results.poseLandmarks;
 
-  const leftShoulder = lm[11];
-  const rightShoulder = lm[12];
-  const leftEye = lm[2];
-  const rightEye = lm[5];
+ const leftShoulder=lm[11];
+ const rightShoulder=lm[12];
+ const leftHip=lm[23];
+ const rightHip=lm[24];
+ const leftEye=lm[2];
+ const rightEye=lm[5];
 
-  const centerX = (leftShoulder.x + rightShoulder.x) / 2;
-  const eyeY = (leftEye.y + rightEye.y) / 2;
+ const shoulderWidth=Math.abs(leftShoulder.x-rightShoulder.x);
+ const hipWidth=Math.abs(leftHip.x-rightHip.x);
 
-  const centerDot = document.getElementById("centerDot");
-  centerDot.style.left = (centerX * 100) + "%";
-  centerDot.style.top = (eyeY * 100) + "%";
+ const bodyThicknessRatio=shoulderWidth/hipWidth;
 
-  const goldenPoints = [
-    {x:0.382, y:0.382, el:document.getElementById("gp1")},
-    {x:0.618, y:0.382, el:document.getElementById("gp2")}
-  ];
+ const centerX=(leftShoulder.x+rightShoulder.x)/2;
+ const eyeY=(leftEye.y+rightEye.y)/2;
 
-  let bestDistance = 999;
-  let bestPoint = null;
+ let score=100;
+ let tips=[];
 
-  goldenPoints.forEach(p => {
-    const dx = centerX - p.x;
-    const dy = eyeY - p.y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist < bestDistance) {
-      bestDistance = dist;
-      bestPoint = p;
-    }
-    p.el.classList.remove("highlight");
-  });
+ // ===== 黄金构图 =====
+ const goldenX1=0.382;
+ const goldenX2=0.618;
+ const goldenY=0.382;
 
-  let score = 100 - bestDistance * 400;
-  let tips = [];
+ const distX=Math.min(Math.abs(centerX-goldenX1),Math.abs(centerX-goldenX2));
+ const distY=Math.abs(eyeY-goldenY);
 
-  if (bestDistance < 0.05) {
-    bestPoint.el.classList.add("highlight");
-  } else {
-    if (centerX < bestPoint.x) tips.push("往右一点 👉");
-    if (centerX > bestPoint.x) tips.push("往左一点 👈");
-    if (eyeY < bestPoint.y) tips.push("往下一点 ⬇");
-    if (eyeY > bestPoint.y) tips.push("往上一点 ⬆");
-  }
+ score-=distX*300;
+ score-=distY*300;
 
-  if (score < 0) score = 0;
-  if (score > 100) score = 100;
+ if(distX>0.08){
+   if(centerX<0.5)tips.push("往右移动一点 👉");
+   else tips.push("往左移动一点 👈");
+ }
 
-  currentScore = score;
+ if(distY>0.08){
+   if(eyeY<goldenY)tips.push("镜头往下一点 ⬇");
+   else tips.push("镜头往上一点 ⬆");
+ }
 
-  const tipText = document.getElementById("tipText");
-  const scoreText = document.getElementById("scoreText");
-  const readyHint = document.getElementById("readyHint");
+ // ===== 45° 侧身显瘦检测 =====
+ // 正面时 shoulderWidth 接近 hipWidth
+ // 侧身时 shoulderWidth 会明显变窄
 
-  tipText.innerText = tips.length === 0 ? "构图已吸附黄金点 👍" : tips.join(" | ");
-  scoreText.innerText = "评分：" + Math.round(score);
+ if(bodyThicknessRatio>0.9){
+   tips.push("稍微侧身 30°-45° 更显瘦 ↩️");
+   score-=15;
+ }
+ else if(bodyThicknessRatio<0.6){
+   tips.push("侧身很好，很显瘦 👍");
+   score+=10;
+ }
 
-  if (score >= 90) {
-    shutterBtn.style.background = "lime";
-    readyHint.style.display = "block";
-  } else {
-    shutterBtn.style.background = "red";
-    readyHint.style.display = "none";
-  }
+ if(score<0)score=0;
+ if(score>100)score=100;
+
+ currentScore=score;
+
+ const tipText=document.getElementById("tipText");
+ const scoreText=document.getElementById("scoreText");
+ const readyHint=document.getElementById("readyHint");
+
+ tipText.innerText=tips.length===0?"构图+角度都很好 👍":tips.join(" | ");
+ scoreText.innerText="评分："+Math.round(score);
+
+ if(score>=90){
+   shutterBtn.style.background="lime";
+   readyHint.style.display="block";
+ }else{
+   shutterBtn.style.background="red";
+   readyHint.style.display="none";
+ }
 }
 
-const camera = new Camera(video, {
-  onFrame: async () => await pose.send({ image: video }),
-  width: 640,
-  height: 480
+const camera=new Camera(video,{
+ onFrame:async()=>await pose.send({image:video}),
+ width:640,
+ height:480
 });
 camera.start();
 
-shutterBtn.addEventListener("click", () => {
-  if (currentScore < 80) {
-    alert("再微调一下更完美 👍");
-    return;
-  }
-  const link = document.createElement("a");
-  link.download = "golden-photo.png";
-  link.href = canvas.toDataURL("image/png");
-  link.click();
+shutterBtn.addEventListener("click",()=>{
+ if(currentScore<80){
+   alert("再微调一下会更好 👍");
+   return;
+ }
+ const link=document.createElement("a");
+ link.download="slim-photo.png";
+ link.href=canvas.toDataURL("image/png");
+ link.click();
 });
 </script>
 
