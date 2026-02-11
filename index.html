@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AI摄影辅助</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+  <style>
+    body { margin:0; overflow:hidden; background:black; }
+    canvas { position:absolute; }
+    #tip {
+      position:fixed;
+      top:20px;
+      left:50%;
+      transform:translateX(-50%);
+      color:white;
+      font-size:24px;
+      background:rgba(0,0,0,0.5);
+      padding:10px 20px;
+      border-radius:20px;
+    }
+  </style>
+</head>
+<body>
+  <video class="input_video" style="display:none;"></video>
+  <canvas class="output_canvas"></canvas>
+  <div id="tip">正在检测...</div>
+
+<script>
+const video = document.querySelector('.input_video');
+const canvas = document.querySelector('.output_canvas');
+const ctx = canvas.getContext('2d');
+const tip = document.getElementById('tip');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const pose = new Pose({
+  locateFile: file =>
+    `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+});
+
+pose.setOptions({
+  modelComplexity: 0,
+  smoothLandmarks: true,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+
+pose.onResults(results => {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+  if (results.poseLandmarks) {
+    let leftShoulder = results.poseLandmarks[11];
+    let rightShoulder = results.poseLandmarks[12];
+
+    let shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+
+    if (shoulderWidth > 0.3) {
+      tip.innerText = "稍微侧身会更显瘦";
+    } else {
+      tip.innerText = "姿势不错 👍";
+      if (navigator.vibrate) {
+        navigator.vibrate(100);
+      }
+    }
+  }
+});
+
+const camera = new Camera(video, {
+  onFrame: async () => {
+    await pose.send({image: video});
+  },
+  width: 640,
+  height: 480
+});
+camera.start();
+</script>
+</body>
+</html>
