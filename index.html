@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 女友拍照助手 6.0</title>
+<title>AI 女友拍照助手 7.0</title>
 
 <style>
 body {
@@ -26,22 +26,13 @@ video, canvas {
   position: fixed;
   top: 50%;
   left: 50%;
-  width: 60vw;
+  width: 65vw;
+  height: 70vh;
   transform: translate(-50%, -50%);
   border: 4px solid red;
   border-radius: 20px;
   pointer-events: none;
-  transition: all 0.3s ease;
-}
-
-#modeLabel {
-  position: fixed;
-  top: 20px;
-  width: 100%;
-  text-align: center;
-  color: white;
-  font-size: 18px;
-  font-weight: bold;
+  transition: 0.3s ease;
 }
 
 #tipText {
@@ -49,10 +40,9 @@ video, canvas {
   bottom: 120px;
   width: 100%;
   text-align: center;
-  font-size: 18px;
   color: white;
+  font-size: 18px;
   font-weight: bold;
-  padding: 0 20px;
 }
 
 #scoreText {
@@ -60,8 +50,8 @@ video, canvas {
   bottom: 90px;
   width: 100%;
   text-align: center;
-  font-size: 20px;
   color: yellow;
+  font-size: 20px;
   font-weight: bold;
 }
 
@@ -75,12 +65,12 @@ video, canvas {
   border-radius: 50%;
   border: 6px solid white;
   background: red;
-  transition: all 0.3s ease;
+  transition: 0.3s;
 }
 
 #readyHint {
   position: fixed;
-  bottom: 180px;
+  bottom: 170px;
   width: 100%;
   text-align: center;
   font-size: 22px;
@@ -97,11 +87,9 @@ video, canvas {
 <canvas class="output_canvas"></canvas>
 
 <div id="guideBox"></div>
-<div id="modeLabel">正在分析构图...</div>
-<div id="tipText">正在识别...</div>
+<div id="tipText"></div>
 <div id="scoreText"></div>
-<div id="readyHint">构图很好，可以拍了！📸</div>
-
+<div id="readyHint">构图非常好，可以拍了 📸</div>
 <button id="shutterBtn"></button>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
@@ -116,16 +104,14 @@ const shutterBtn = document.getElementById("shutterBtn");
 let currentScore = 0;
 
 const pose = new Pose({
-  locateFile: (file) => {
-    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-  }
+  locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
 });
 
 pose.setOptions({
   modelComplexity: 1,
   smoothLandmarks: true,
-  minDetectionConfidence: 0.5,
-  minTrackingConfidence: 0.5
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
 });
 
 pose.onResults(onResults);
@@ -134,101 +120,99 @@ function onResults(results) {
 
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
   if (!results.poseLandmarks) return;
 
-  const landmarks = results.poseLandmarks;
-  const nose = landmarks[0];
-  const leftAnkle = landmarks[27];
-  const rightAnkle = landmarks[28];
+  const lm = results.poseLandmarks;
 
-  const guideBox = document.getElementById("guideBox");
+  const nose = lm[0];
+  const leftShoulder = lm[11];
+  const rightShoulder = lm[12];
+  const leftAnkle = lm[27];
+  const rightAnkle = lm[28];
+
   const tipText = document.getElementById("tipText");
   const scoreText = document.getElementById("scoreText");
-  const modeLabel = document.getElementById("modeLabel");
+  const guideBox = document.getElementById("guideBox");
   const readyHint = document.getElementById("readyHint");
 
   let score = 100;
   let tips = [];
 
+  // ===== 计算身体整体中心 =====
   const bodyTop = nose.y;
   const bodyBottom = Math.max(leftAnkle.y, rightAnkle.y);
-  const bodyHeight = bodyBottom - bodyTop;
+  const bodyCenterY = (bodyTop + bodyBottom) / 2;
 
-  let recommendedMode = "";
+  const shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
 
-  if (bodyHeight > 0.75) {
-    recommendedMode = "半身更合适 📷";
-    guideBox.style.height = "55vh";
-  } 
-  else if (bodyHeight > 0.45) {
-    recommendedMode = "全身构图不错 📸";
-    guideBox.style.height = "75vh";
-  } 
-  else {
-    recommendedMode = "人物太小，靠近一点 👣";
-    guideBox.style.height = "75vh";
+  // ===== 水平居中判断 =====
+  if (shoulderCenterX < 0.4) {
+    tips.push("人物偏左 👉");
+    score -= 25;
+  }
+  if (shoulderCenterX > 0.6) {
+    tips.push("人物偏右 👈");
+    score -= 25;
+  }
+
+  // ===== 垂直居中判断 =====
+  if (bodyCenterY < 0.35) {
+    tips.push("人物太靠上 📏");
+    score -= 25;
+  }
+  if (bodyCenterY > 0.65) {
+    tips.push("人物太靠下 📏");
+    score -= 25;
+  }
+
+  // ===== 头顶安全边距 =====
+  if (nose.y < 0.1) {
+    tips.push("头顶太贴边 ⚠️");
     score -= 30;
   }
 
-  modeLabel.innerText = "AI 推荐：" + recommendedMode;
-
-  if (nose.x < 0.35) {
-    tips.push("往右一点 👉");
+  // ===== 人物比例 =====
+  const bodyHeight = bodyBottom - bodyTop;
+  if (bodyHeight < 0.4) {
+    tips.push("人物太小，靠近一点 👣");
     score -= 20;
-  } else if (nose.x > 0.65) {
-    tips.push("往左一点 👈");
+  }
+  if (bodyHeight > 0.9) {
+    tips.push("人物太大，后退一点 ↩️");
     score -= 20;
   }
 
-  if (nose.y < 0.12) {
-    tips.push("头顶太贴边 📏");
-    score -= 20;
-  }
-
-  if (score > 100) score = 100;
   if (score < 0) score = 0;
+  if (score > 100) score = 100;
 
   currentScore = score;
 
-  if (score >= 85) {
-    guideBox.style.borderColor = "lime";
-  } else {
-    guideBox.style.borderColor = "red";
-  }
-
-  if (tips.length === 0) {
-    tipText.innerText = "构图不错 👍";
-  } else {
-    tipText.innerText = tips.join(" | ");
-  }
-
-  scoreText.innerText = "当前评分：" + score;
-
   if (score >= 90) {
+    guideBox.style.borderColor = "lime";
     shutterBtn.style.background = "lime";
     readyHint.style.display = "block";
   } else {
+    guideBox.style.borderColor = "red";
     shutterBtn.style.background = "red";
     readyHint.style.display = "none";
   }
+
+  tipText.innerText = tips.length === 0 ? "构图很棒 👍" : tips.join(" | ");
+  scoreText.innerText = "评分：" + score;
 }
 
 const camera = new Camera(video, {
-  onFrame: async () => {
-    await pose.send({ image: video });
-  },
+  onFrame: async () => await pose.send({ image: video }),
   width: 640,
   height: 480
 });
-
 camera.start();
 
 shutterBtn.addEventListener("click", () => {
-  if (currentScore < 70) {
-    alert("构图一般，再调整一下会更好 👍");
+  if (currentScore < 75) {
+    alert("构图还可以优化一下 👍");
     return;
   }
 
