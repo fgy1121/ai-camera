@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 摄影导航系统</title>
+<title>AI 摄影导航系统 2.0</title>
 
 <style>
 body{
@@ -36,6 +36,7 @@ video,canvas{
   border-radius:50%;
   background:white;
   transform:translate(-50%,-50%);
+  transition:all 0.2s ease;
 }
 
 #moveCircle{
@@ -43,6 +44,7 @@ video,canvas{
   border:3px solid red;
   border-radius:50%;
   transform:translate(-50%,-50%);
+  transition:all 0.1s linear;
 }
 
 #tip{
@@ -126,9 +128,6 @@ let perfect=false;
 let targetX=0.618;
 let targetY=0.382;
 
-targetDot.style.left=(targetX*100)+"%";
-targetDot.style.top=(targetY*100)+"%";
-
 const pose=new Pose({
   locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
 });
@@ -148,37 +147,61 @@ pose.onResults(results=>{
   if(!results.poseLandmarks)return;
 
   const lm=results.poseLandmarks;
+
   const centerX=(lm[11].x+lm[12].x)/2;
   const eyeY=(lm[2].y+lm[5].y)/2;
 
+  const shoulderWidth=Math.abs(lm[11].x-lm[12].x);
+
+  const hasAnkle = lm[27].visibility>0.5 || lm[28].visibility>0.5;
+
+  // ===== 动态黄金点 =====
+  targetX = centerX < 0.5 ? 0.618 : 0.382;
+  targetY = hasAnkle ? 0.5 : 0.382;
+
+  targetDot.style.left=(targetX*100)+"%";
+  targetDot.style.top=(targetY*100)+"%";
+
   const dx=centerX-targetX;
   const dy=eyeY-targetY;
-  const distance=Math.sqrt(dx*dx+dy*dy);
+  const distance2D=Math.sqrt(dx*dx+dy*dy);
 
-  const size=Math.max(20,distance*800);
+  let distanceScore = distance2D;
+
+  let messages=[];
+
+  if(dx>0)messages.push("往左移动");
+  if(dx<0)messages.push("往右移动");
+  if(dy>0)messages.push("手机往上抬");
+  if(dy<0)messages.push("手机往下压");
+
+  // ===== 前后距离判断 =====
+  if(shoulderWidth<0.15){
+    messages.push("往前走");
+    distanceScore+=0.05;
+  }
+  if(shoulderWidth>0.30){
+    messages.push("往后退");
+    distanceScore+=0.05;
+  }
+
+  const size=Math.max(20,distanceScore*800);
 
   moveCircle.style.width=size+"px";
   moveCircle.style.height=size+"px";
   moveCircle.style.left=(targetX*100)+"%";
   moveCircle.style.top=(targetY*100)+"%";
 
-  if(distance<0.03){
+  if(distanceScore<0.03){
     moveCircle.style.borderColor="lime";
     ready.style.display="block";
-    tip.innerText="保持位置，构图完美";
+    tip.innerText="构图完美";
     perfect=true;
   }else{
     moveCircle.style.borderColor="red";
     ready.style.display="none";
     perfect=false;
-
-    let msg=[];
-    if(dx>0)msg.push("往左移动");
-    if(dx<0)msg.push("往右移动");
-    if(dy>0)msg.push("手机往上抬");
-    if(dy<0)msg.push("手机往下压");
-
-    tip.innerText=msg.join("  ");
+    tip.innerText=messages.join("  ");
   }
 });
 
@@ -208,14 +231,10 @@ async function startCamera(){
   detectLoop();
 }
 
-document.getElementById("switchCam").addEventListener("click",async()=>{
+document.getElementById("switchCam").addEventListener("click",()=>{
   detecting=false;
-
   currentFacing=currentFacing==="environment"?"user":"environment";
-
-  setTimeout(()=>{
-    startCamera();
-  },200);
+  setTimeout(startCamera,200);
 });
 
 document.getElementById("shutter").addEventListener("click",()=>{
